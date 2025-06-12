@@ -19,7 +19,6 @@ var MigrationsCmd = &cobra.Command{
 	Use:   "migrations",
 	Short: "Run database migrations",
 	Run: func(cmd *cobra.Command, args []string) {
-
 		err := godotenv.Load()
 		if err != nil {
 			log.Fatalf("Error loading .env.config file: %v", err)
@@ -50,7 +49,8 @@ var MigrationsCmd = &cobra.Command{
 			log.Fatalf("failed to create migration driver: %v", err)
 		}
 
-		m, err := migrate.NewWithDatabaseInstance("file://cmd/migrations//sql/", "postgres", driver)
+		m, err := migrate.NewWithDatabaseInstance("file://cmd/migrations/sql", "postgres", driver)
+
 		if err != nil {
 			log.Fatalf("failed to create migrate instance: %v", err)
 		}
