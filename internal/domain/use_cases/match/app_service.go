@@ -9,8 +9,9 @@ import (
 
 type Repository interface {
 	GetMatchById(matchId uuid.UUID) (*domain.Match, error)
-	PostMatch(homeTeamId, awayTeamId uuid.UUID, matchDate time.Time, homeGoals, awayGoals int) error
+	PostMatch(seasonId, homeTeamId, awayTeamId uuid.UUID, matchDate time.Time, homeGoals, awayGoals int) error
 	PostMatchEvent(event domain.MatchEventInfo) error
+	PostMatches(matches []domain.SeasonMatch) error
 }
 
 func NewApp(repository Repository) AppService {

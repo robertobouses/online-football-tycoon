@@ -9,21 +9,22 @@ import (
 	"github.com/google/uuid"
 )
 
-type MatchId struct {
-	MatchId uuid.UUID `json:"match_id"`
+type MatchRequest struct {
+	SeasonId uuid.UUID `json:"season_id"`
+	MatchId  uuid.UUID `json:"match_id"`
 }
 
-func (h Handler) PostMatchbyId(c *gin.Context) {
-	var req MatchId
+func (h Handler) PostPlayMatchbyId(c *gin.Context) {
+	var req MatchRequest
 	if err := c.BindJSON(&req); err != nil {
-		log.Printf("[PostMatchbyId] error parsing request: %v", err)
+		log.Printf("[PostPlayMatchbyId] error parsing request: %v", err)
 		c.AbortWithStatus(http.StatusBadRequest)
 		return
 	}
 
 	log.Printf("match id: %s", req.MatchId)
 
-	result, err := h.app.PlayMatch(req.MatchId)
+	result, err := h.app.PlayMatch(req.SeasonId, req.MatchId)
 	if err != nil {
 		c.JSON(nethttp.StatusInternalServerError, gin.H{"error": err.Error()})
 		return

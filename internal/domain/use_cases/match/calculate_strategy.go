@@ -3,52 +3,58 @@ package match
 import (
 	"errors"
 	"fmt"
+	"sort"
 
 	"github.com/robertobouses/online-football-tycoon/internal/domain"
 )
 
-func CalculateResultOfStrategy(lineup []domain.Player, formation, playingStyle, gameTempo, passingStyle, defensivePositioning, buildUpPlay, attackFocus, keyPlayerUsage string) (result map[string]float64, err error) {
+type strategyResult struct {
+	teamPossession float64
+	teamChances    float64
+	rivalChances   float64
+	teamPhysique   int
+}
 
-	result = make(map[string]float64)
+func CalculateResultOfStrategy(lineup []domain.Player, formation, playingStyle, gameTempo, passingStyle, defensivePositioning, buildUpPlay, attackFocus, keyPlayerUsage string) (result strategyResult, err error) {
 
 	teamPossessionFormation, teamChancesFormation, rivalChancesFormation, err := CalculatePossessionChancesByFormation(lineup, formation)
 	if err != nil {
-		return nil, fmt.Errorf("Error in formation: %v", err)
+		return strategyResult{}, fmt.Errorf("Error in formation: %v", err)
 	}
 
 	teamPossessionStyle, teamChancesStyle, rivalChancesStyle, physiqueStyle, err := CalculatePossessionChancesByPlayingStyle(lineup, playingStyle)
 	if err != nil {
-		return nil, fmt.Errorf("Error in playing style: %v", err)
+		return strategyResult{}, fmt.Errorf("Error in playing style: %v", err)
 	}
 
 	teamPossessionTempo, teamChancesTempo, rivalChancesTempo, physiqueTempo, err := CalculatePossessionChancesByGameTempo(gameTempo)
 	if err != nil {
-		return nil, fmt.Errorf("Error in game tempo: %v", err)
+		return strategyResult{}, fmt.Errorf("Error in game tempo: %v", err)
 	}
 
 	teamPossessionPassing, rivalChancesPassing, err := CalculatePossessionChancesByPassingStyle(passingStyle)
 	if err != nil {
-		return nil, fmt.Errorf("Error in passing style: %v", err)
+		return strategyResult{}, fmt.Errorf("Error in passing style: %v", err)
 	}
 
 	rivalChancesDefensivePositioning, physiqueDefensive, err := CalculateRivalChancesByDefensivePositioning(lineup, defensivePositioning)
 	if err != nil {
-		return nil, fmt.Errorf("Error in defensive positioning: %v", err)
+		return strategyResult{}, fmt.Errorf("Error in defensive positioning: %v", err)
 	}
 
 	teamPossessionBuildUpPlay, err := CalculatePossessionByBuildUpPlay(lineup, buildUpPlay)
 	if err != nil {
-		return nil, fmt.Errorf("Error in build-up play: %v", err)
+		return strategyResult{}, fmt.Errorf("Error in build-up play: %v", err)
 	}
 
 	rivalChancesAttackFocus, err := CalculateRivalChancesByAttackFocus(lineup, attackFocus)
 	if err != nil {
-		return nil, fmt.Errorf("Error in rival chances by attack focus: %v", err)
+		return strategyResult{}, fmt.Errorf("Error in rival chances by attack focus: %v", err)
 	}
 
 	teamPossessionKeyPlayer, teamChancesKeyPlayer, err := CalculateRivalChancesByKeyPlayerUsage(lineup, keyPlayerUsage)
 	if err != nil {
-		return nil, fmt.Errorf("Error in rival chances by key player usage: %v", err)
+		return strategyResult{}, fmt.Errorf("Error in rival chances by key player usage: %v", err)
 	}
 
 	totalTeamPossession := (teamPossessionFormation + teamPossessionStyle + teamPossessionTempo + teamPossessionPassing + teamPossessionBuildUpPlay + teamPossessionKeyPlayer) / 6
@@ -57,11 +63,12 @@ func CalculateResultOfStrategy(lineup []domain.Player, formation, playingStyle, 
 
 	totalPhysique := physiqueStyle + physiqueTempo + physiqueDefensive
 
-	result["teamPossession"] = totalTeamPossession
-	result["teamChances"] = totalTeamChances
-	result["rivalChances"] = totalRivalChances
-	result["teamPhysique"] = float64(totalPhysique)
-
+	result = strategyResult{
+		teamPossession: totalTeamPossession,
+		teamChances:    totalTeamChances,
+		rivalChances:   totalRivalChances,
+		teamPhysique:   totalPhysique,
+	}
 	return result, nil
 }
 
@@ -141,9 +148,17 @@ func CalculatePossessionChancesByFormation(lineup []domain.Player, formation str
 
 func CalculatePossessionChancesByPlayingStyle(lineup []domain.Player, playingStyle string) (teamPossession, teamChances, rivalChances float64, physique int, err error) {
 	totalDefendersQuality, err := getTwoBestPlayers(lineup, "defender")
+	if err != nil {
+		return 0, 0, 0, 0, err
+	}
 	totalMidfieldersQuality, err := getTwoBestPlayers(lineup, "midfielder")
-	totalForwardersQuality, err := getTwoBestPlayers(lineup, "forwarder")
-
+	if err != nil {
+		return 0, 0, 0, 0, err
+	}
+	totalForwardersQuality, err := getTwoBestPlayers(lineup, "forward")
+	if err != nil {
+		return 0, 0, 0, 0, err
+	}
 	switch playingStyle {
 
 	case "possession":
@@ -404,29 +419,48 @@ func CalculateRivalChancesByKeyPlayerUsage(lineup []domain.Player, keyPlayerUsag
 }
 
 func getTwoBestPlayers(players []domain.Player, position string) (int, error) {
-	var foundPlayers int
-	bestPlayers := make([]domain.Player, 2)
+	var selected []domain.Player
 
 	for _, player := range players {
 		if player.Position == position {
-			if foundPlayers < 2 {
-				foundPlayers++
-				if foundPlayers == 1 || player.Technique+player.Mental+player.Physique > bestPlayers[0].Technique+bestPlayers[0].Mental+bestPlayers[0].Physique {
-					bestPlayers[1] = bestPlayers[0]
-					bestPlayers[0] = player
-				} else if foundPlayers == 2 || player.Technique+player.Mental+player.Physique > bestPlayers[1].Technique+bestPlayers[1].Mental+bestPlayers[1].Physique {
-					bestPlayers[1] = player
+			selected = append(selected, player)
+		}
+	}
+
+	if len(selected) < 2 {
+		for _, player := range players {
+			if player.Position == "Midfielder" && !containsPlayer(selected, player) {
+				selected = append(selected, player)
+				if len(selected) == 2 {
+					break
 				}
 			}
 		}
 	}
 
-	if foundPlayers < 2 {
-		return 0, errors.New("there are not enough players in the lineup")
+	if len(selected) < 2 {
+		return 0, errors.New("not enough suitable players available")
 	}
 
-	totalPlayersQuality := bestPlayers[0].Technique + bestPlayers[0].Mental + bestPlayers[0].Physique +
-		bestPlayers[1].Technique + bestPlayers[1].Mental + bestPlayers[1].Physique
+	sort.Slice(selected, func(i, j int) bool {
+		return playerTotalQuality(selected[i]) > playerTotalQuality(selected[j])
+	})
 
-	return totalPlayersQuality, nil
+	bestPlayers := selected[:2]
+
+	totalQuality := playerTotalQuality(bestPlayers[0]) + playerTotalQuality(bestPlayers[1])
+	return totalQuality, nil
+}
+
+func playerTotalQuality(p domain.Player) int {
+	return p.Technique + p.Mental + p.Physique
+}
+
+func containsPlayer(players []domain.Player, onePlayer domain.Player) bool {
+	for _, player := range players {
+		if player.PlayerId == onePlayer.PlayerId {
+			return true
+		}
+	}
+	return false
 }
