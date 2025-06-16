@@ -9,28 +9,25 @@ import (
 	"github.com/google/uuid"
 )
 
-type MatchId struct {
-	MatchId uuid.UUID `json:"match_id"`
+type RoundRobinScheduleRequest struct {
+	SeasionID uuid.UUID `json:"season_id"`
 }
 
-func (h Handler) PostMatchbyId(c *gin.Context) {
-	var req MatchId
+func (h Handler) PostSeasonMatches(c *gin.Context) {
+	var req RoundRobinScheduleRequest
 	if err := c.BindJSON(&req); err != nil {
-		log.Printf("[PostMatchbyId] error parsing request: %v", err)
+		log.Printf("[PostSeasonMatches] error parsing request: %v", err)
 		c.AbortWithStatus(http.StatusBadRequest)
 		return
 	}
 
-	log.Printf("match id: %s", req.MatchId)
-
-	result, err := h.app.PlayMatch(req.MatchId)
+	err := h.teamApp.GenerateRoundRobinSchedule(req.SeasionID)
 	if err != nil {
 		c.JSON(nethttp.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
 
 	c.JSON(nethttp.StatusOK, gin.H{
-		"mensaje":   "Encuentro simulado",
-		"resultado": result,
+		"mensaje": "Season created",
 	})
 }
